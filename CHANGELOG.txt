@@ -4,7 +4,10 @@ MrX SceneDeck - Changelog
 2.1.1
 - Rebranded the visible floating-window header and title as MrX SceneDeck.
 - Updated the Stash plugin display name and user-facing labels.
-- Preserved the MosaicFloat6x6 internal ID for upgrade compatibility.
+- Renamed the plugin folder, manifest, JavaScript, Python backend and internal
+  plugin ID to MrXSceneDeck.
+- Reads the previous MosaicFloat6x6 grid-size preference once as a migration
+  fallback while saving future changes under the new name.
 
 2.1.0
 - Added an independent progressive high-resolution upgrade enabled by default.

@@ -1,0 +1,25 @@
+name: MrX SceneDeck
+description: Always-on-top clickable 4x4 through 8x8 contact sheet for Stash with progressive high-resolution upgrade.
+version: 2.1.1
+settings:
+  disableAutoOpen:
+    displayName: Disable automatic opening
+    description: Do not open on the first player click. Ctrl+Shift+M can still open the button-free SceneDeck.
+    type: BOOLEAN
+  disableHighRes:
+    displayName: Disable high-resolution upgrade
+    description: Keep the instant sprite grid without generating and caching a sharper grid from the real video.
+    type: BOOLEAN
+  highResCacheMax:
+    displayName: High-resolution cache limit
+    description: Maximum generated high-resolution sheets to retain. Unset or 0 uses the default limit of 250.
+    type: NUMBER
+ui:
+  javascript:
+    - MrXSceneDeck.js
+  assets:
+    /: .
+exec:
+  - python
+  - "{pluginDir}/MrXSceneDeck.py"
+interface: raw
