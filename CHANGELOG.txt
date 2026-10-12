@@ -1,0 +1,25 @@
+Floating Mosaic Grid - Changelog
+================================
+
+2.0.0
+- Expanded the original fixed 6x6 floater into selectable 4x4, 5x5, 6x6,
+  7x7 and 8x8 grids with a remembered browser preference.
+- Builds accurate grids directly from Stash's existing sprite and WebVTT data;
+  Mosaic Poster is no longer required and remains completely untouched.
+- Added default automatic opening from the first qualifying player click while
+  preserving the Document Picture-in-Picture user-gesture requirement.
+- Added a 'Disable automatic opening' Boolean setting and Ctrl+Shift+M manual
+  recovery shortcut.
+- Removed the fixed page launcher so Stash's Multiview control stays clear.
+- Added Left/Right Arrow five-second seeking from the focused floater without
+  changing the video's play/pause state.
+- Added Ctrl grid navigation: hold Ctrl, move with all four arrow keys, then
+  release Ctrl to seek to the highlighted frame and start playback.
+- Prevents duplicate windows and suppresses automatic reopening after the
+  floater is closed until a full Stash page reload.
+- Preserves and refreshes the floating window across SPA scene navigation.
+- Added complete installation, upgrade, testing and troubleshooting guidance.
+- Credits the Mosaic Poster developer for the automatic-opening suggestion.
+
+1.0.0
+- Initial floating, resizable and clickable 6x6 Mosaic Poster companion.

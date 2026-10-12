@@ -1,0 +1,11 @@
+name: Floating Mosaic Grid
+description: Always-on-top clickable 4x4 through 8x8 sprite mosaic for Stash; uses Chrome/Edge Document Picture-in-Picture.
+version: 2.0.0
+settings:
+  disableAutoOpen:
+    displayName: Disable automatic opening
+    description: Do not open on the first player click. Ctrl+Shift+M can still open the button-free floating mosaic.
+    type: BOOLEAN
+ui:
+  javascript:
+    - MosaicFloat6x6.js
