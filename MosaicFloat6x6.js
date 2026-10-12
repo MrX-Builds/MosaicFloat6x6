@@ -157,7 +157,7 @@
 
   function createUi(win) {
     const doc = win.document;
-    doc.title = 'Stash Floating Mosaic Grid';
+    doc.title = 'MrX SceneDeck';
     const style = doc.createElement('style');
     style.textContent = `
       * { box-sizing: border-box; }
@@ -195,11 +195,11 @@
     bar.className = 'bar';
     const heading = doc.createElement('span');
     heading.className = 'heading';
-    heading.textContent = 'Mosaic';
+    heading.textContent = 'MrX SceneDeck';
     const gridSwitch = doc.createElement('div');
     gridSwitch.className = 'grid-switch';
     gridSwitch.setAttribute('role', 'group');
-    gridSwitch.setAttribute('aria-label', 'Floating mosaic grid size');
+    gridSwitch.setAttribute('aria-label', 'MrX SceneDeck grid size');
     const gridButtons = new Map();
     GRID_OPTIONS.forEach(size => {
       const button = doc.createElement('button');
@@ -224,7 +224,7 @@
     const sheet = doc.createElement('div');
     sheet.className = 'sheet';
     const image = doc.createElement('img');
-    image.alt = 'Mosaic contact sheet';
+    image.alt = 'MrX SceneDeck contact sheet';
     image.draggable = false;
     const cells = doc.createElement('div');
     cells.className = 'cells';
@@ -756,7 +756,7 @@
     } catch (error) {
       console.error('[Floating Mosaic] Could not open picture-in-picture:', error);
       if (trigger !== 'auto') {
-        alert('Could not open Floating Mosaic: ' + (error && error.message || String(error)));
+        alert('Could not open MrX SceneDeck: ' + (error && error.message || String(error)));
       }
     } finally {
       openingPip = false;

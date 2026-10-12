@@ -1,5 +1,10 @@
-Floating Mosaic Grid - Changelog
-================================
+MrX SceneDeck - Changelog
+=========================
+
+2.1.1
+- Rebranded the visible floating-window header and title as MrX SceneDeck.
+- Updated the Stash plugin display name and user-facing labels.
+- Preserved the MosaicFloat6x6 internal ID for upgrade compatibility.
 
 2.1.0
 - Added an independent progressive high-resolution upgrade enabled by default.
