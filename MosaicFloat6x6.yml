@@ -1,11 +1,25 @@
 name: Floating Mosaic Grid
-description: Always-on-top clickable 4x4 through 8x8 sprite mosaic for Stash; uses Chrome/Edge Document Picture-in-Picture.
-version: 2.0.0
+description: Always-on-top clickable 4x4 through 8x8 mosaic for Stash with progressive high-resolution upgrade.
+version: 2.1.0
 settings:
   disableAutoOpen:
     displayName: Disable automatic opening
     description: Do not open on the first player click. Ctrl+Shift+M can still open the button-free floating mosaic.
     type: BOOLEAN
+  disableHighRes:
+    displayName: Disable high-resolution upgrade
+    description: Keep the instant sprite grid without generating and caching a sharper grid from the real video.
+    type: BOOLEAN
+  highResCacheMax:
+    displayName: High-resolution cache limit
+    description: Maximum generated high-resolution sheets to retain. Unset or 0 uses the default limit of 250.
+    type: NUMBER
 ui:
   javascript:
     - MosaicFloat6x6.js
+  assets:
+    /: .
+exec:
+  - python
+  - "{pluginDir}/MosaicFloat6x6.py"
+interface: raw

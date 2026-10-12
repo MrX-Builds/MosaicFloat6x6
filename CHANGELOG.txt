@@ -1,25 +1,28 @@
 Floating Mosaic Grid - Changelog
 ================================
 
+2.1.0
+- Added an independent progressive high-resolution upgrade enabled by default.
+- Continues showing the immediate sprite grid while the backend generates a
+  sharper JPEG from the real scene video, then swaps only after it fully loads.
+- Added a Python raw-interface backend that resolves Stash's ffmpeg path and
+  stores disposable per-scene/per-grid JPEGs in the plugin directory.
+- Captures up to four frames in parallel to reduce first-generation time.
+- Added a configurable high-resolution cache limit with oldest-first pruning;
+  unset or 0 uses the default limit of 250 sheets.
+- Added a Disable high-resolution upgrade setting for sprite-only operation
+  with no ffmpeg work or generated cache files.
+- High-resolution cell timestamps use the same midpoint sampling positions as
+  the generated image, preserving accurate click and Ctrl navigation seeking.
+- De-duplicates high-resolution probes and generation requests in the browser.
+- Remains independent of Mosaic Poster and does not alter Stash metadata.
+
 2.0.0
-- Expanded the original fixed 6x6 floater into selectable 4x4, 5x5, 6x6,
-  7x7 and 8x8 grids with a remembered browser preference.
-- Builds accurate grids directly from Stash's existing sprite and WebVTT data;
-  Mosaic Poster is no longer required and remains completely untouched.
-- Added default automatic opening from the first qualifying player click while
-  preserving the Document Picture-in-Picture user-gesture requirement.
-- Added a 'Disable automatic opening' Boolean setting and Ctrl+Shift+M manual
-  recovery shortcut.
-- Removed the fixed page launcher so Stash's Multiview control stays clear.
-- Added Left/Right Arrow five-second seeking from the focused floater without
-  changing the video's play/pause state.
-- Added Ctrl grid navigation: hold Ctrl, move with all four arrow keys, then
-  release Ctrl to seek to the highlighted frame and start playback.
-- Prevents duplicate windows and suppresses automatic reopening after the
-  floater is closed until a full Stash page reload.
-- Preserves and refreshes the floating window across SPA scene navigation.
-- Added complete installation, upgrade, testing and troubleshooting guidance.
-- Credits the Mosaic Poster developer for the automatic-opening suggestion.
+- Expanded the original fixed 6x6 floater into selectable 4x4 through 8x8
+  grids with automatic opening, keyboard seeking, Ctrl cell navigation,
+  scene-navigation preservation and a button-free Multiview-safe interface.
+- Replaced the Mosaic Poster overlay dependency with an independent renderer
+  built from Stash's existing sprite and WebVTT data.
 
 1.0.0
 - Initial floating, resizable and clickable 6x6 Mosaic Poster companion.

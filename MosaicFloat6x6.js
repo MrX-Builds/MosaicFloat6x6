@@ -1,7 +1,8 @@
 /*
-  Mosaic Float Grid v2.0 - Stash UI plugin.
-  Builds selectable 4x4 through 8x8 sheets from Stash's existing sprite/VTT.
-  No file writes, no Stash metadata changes, no ffmpeg generation.
+  Mosaic Float Grid v2.1 - Stash UI plugin.
+  Shows selectable 4x4 through 8x8 sprite sheets immediately, then upgrades
+  them with independently generated and cached high-resolution sheets.
+  Does not change Stash metadata or modify Mosaic Poster.
   Requires Chrome/Edge Document Picture-in-Picture (localhost or HTTPS).
 
   Auto-open on the first player gesture was suggested by the Mosaic Poster
@@ -21,6 +22,7 @@
   let pipUi = null;
   let openingPip = false;
   let autoOpenEnabled = true;
+  let highResEnabled = true;
   let autoOpenConfigLoaded = false;
   let autoOpenConsumed = false;
   let lastSceneId = null;
@@ -28,12 +30,16 @@
   let activeSceneId = null;
   let activeTimes = [];
   let activeDuration = 0;
+  let activeHighRes = false;
   let selectedCellIndex = 0;
   let ctrlNavigationActive = false;
   let ctrlNavigationMoved = false;
   let renderSerial = 0;
   const sceneInfoCache = new Map();
   const sheetCache = new Map();
+  const highResReady = new Set();
+  const highResProbeCache = new Map();
+  const highResGenerationCache = new Map();
   let floatingGrid = (() => {
     try {
       const saved = Number(localStorage.getItem(GRID_STORAGE_KEY));
@@ -56,6 +62,13 @@
     return hours
       ? [hours, minutes, secs].map(v => String(v).padStart(2, '0')).join(':')
       : [minutes, secs].map(v => String(v).padStart(2, '0')).join(':');
+  }
+
+  function activeStatus(extra) {
+    if (!activeSceneId) return 'Waiting ...';
+    return 'Scene #' + activeSceneId + '  |  ' + floatingGrid + '×' + floatingGrid +
+      '  |  ' + (activeHighRes ? 'High-res' : 'Sprite') +
+      (extra ? '  |  ' + extra : '  |  Click, Ctrl+Arrows, or Left/Right Arrow');
   }
 
   // Same approach Mosaic Poster uses: seek the Video.js player (or HTML video).
@@ -229,10 +242,7 @@
       });
       cell.addEventListener('mouseleave', () => {
         if (ctrlNavigationActive) return;
-        status.textContent = activeSceneId
-          ? 'Scene #' + activeSceneId + '  |  ' + floatingGrid + '×' + floatingGrid +
-            '  |  Click, Ctrl+Arrows, or Left/Right Arrow'
-          : 'Waiting ...';
+        status.textContent = activeStatus();
       });
       cell.addEventListener('click', () => {
         if (!activeSceneId || activeSceneId !== sceneId()) return;
@@ -381,6 +391,7 @@
     ctrlNavigationActive = false;
     ctrlNavigationMoved = false;
     selectedCellIndex = 0;
+    activeHighRes = false;
     try { localStorage.setItem(GRID_STORAGE_KEY, String(size)); } catch (_) {}
     lastFloatingGrid = null;
     updateGridControls();
@@ -395,7 +406,7 @@
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        query: 'query MosaicFloatScene($id: ID!) { findScene(id: $id) { paths { sprite } files { duration } } }',
+        query: 'query MosaicFloatScene($id: ID!) { findScene(id: $id) { paths { sprite } files { duration fingerprints { type value } } } }',
         variables: { id }
       })
     }).then(response => {
@@ -407,9 +418,14 @@
       }
       const scene = payload.data && payload.data.findScene;
       const firstFile = scene && scene.files && scene.files[0];
+      const fingerprints = firstFile && firstFile.fingerprints || [];
+      const oshashEntry = fingerprints.find(item => item && item.type === 'oshash');
+      const cacheKey = String(oshashEntry && oshashEntry.value || 'scene-' + id)
+        .replace(/[^A-Za-z0-9._-]/g, '_');
       return scene ? {
         sprite: scene.paths && scene.paths.sprite,
-        duration: Number(firstFile && firstFile.duration) || 0
+        duration: Number(firstFile && firstFile.duration) || 0,
+        cacheKey
       } : null;
     }).catch(error => {
       sceneInfoCache.delete(id);
@@ -457,6 +473,84 @@
       image.onerror = () => reject(new Error('Could not load the Stash sprite image'));
       image.src = url;
     });
+  }
+
+  function highResSheetKey(cacheKey, size) {
+    return cacheKey + '_' + size + 'x' + size;
+  }
+
+  function highResAssetUrl(cacheKey, size) {
+    return '/plugin/' + PLUGIN_ID + '/assets/generated/' +
+      highResSheetKey(cacheKey, size) + '.jpg';
+  }
+
+  function runPluginOperation(args) {
+    return fetch('/graphql', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'mutation MosaicFloatGenerate($id: ID!, $args: Map) { runPluginOperation(plugin_id: $id, args: $args) }',
+        variables: { id: PLUGIN_ID, args }
+      })
+    }).then(response => {
+      if (!response.ok) throw new Error('High-res GraphQL HTTP ' + response.status);
+      return response.json();
+    }).then(payload => {
+      if (payload.errors && payload.errors.length) {
+        throw new Error(payload.errors.map(item => item.message).join('; '));
+      }
+      return payload && payload.data && payload.data.runPluginOperation;
+    });
+  }
+
+  function probeHighRes(cacheKey, size) {
+    if (!cacheKey) return Promise.resolve(null);
+    const key = highResSheetKey(cacheKey, size);
+    const url = highResAssetUrl(cacheKey, size);
+    if (highResReady.has(key)) return Promise.resolve(url);
+    if (highResProbeCache.has(key)) return highResProbeCache.get(key);
+    const probe = loadImage(url + '?probe=' + Date.now()).then(() => {
+      highResReady.add(key);
+      return url;
+    }).catch(() => {
+      highResProbeCache.delete(key);
+      return null;
+    });
+    highResProbeCache.set(key, probe);
+    return probe;
+  }
+
+  function generateHighRes(id, cacheKey, size) {
+    const key = highResSheetKey(cacheKey, size);
+    if (highResReady.has(key)) return Promise.resolve(highResAssetUrl(cacheKey, size));
+    if (highResGenerationCache.has(key)) return highResGenerationCache.get(key);
+    const baseUrl = highResAssetUrl(cacheKey, size);
+    const generation = runPluginOperation({ mode: 'generate', scene_id: id, n: size })
+      .then(output => {
+        if (!output || output.ready !== true) {
+          throw new Error('High-resolution generator did not return a completed sheet');
+        }
+        const freshUrl = baseUrl + '?generated=' + Date.now();
+        return loadImage(freshUrl).then(() => {
+          highResReady.add(key);
+          return freshUrl;
+        });
+      }).then(result => {
+        highResGenerationCache.delete(key);
+        return result;
+      }, error => {
+        highResGenerationCache.delete(key);
+        throw error;
+      });
+    highResGenerationCache.set(key, generation);
+    return generation;
+  }
+
+  function ensureHighRes(id, cacheKey, size) {
+    return probeHighRes(cacheKey, size).then(url =>
+      url || generateHighRes(id, cacheKey, size)
+    );
   }
 
   function pickIndices(sourceCount, targetCount) {
@@ -510,6 +604,7 @@
     renderSerial++;
     activeSceneId = null;
     activeTimes = [];
+    activeHighRes = false;
     selectedCellIndex = 0;
     ctrlNavigationActive = false;
     ctrlNavigationMoved = false;
@@ -519,6 +614,17 @@
     pipUi.notice.style.display = 'block';
     pipUi.notice.textContent = message;
     pipUi.status.textContent = id ? 'Scene #' + id : 'No scene';
+  }
+
+  function updateVisibleCells(size) {
+    if (!pipUi) return;
+    Array.from(pipUi.cells.children).forEach((cell, index) => {
+      const visible = index < size * size;
+      cell.style.display = visible ? 'block' : 'none';
+      if (!visible) return;
+      cell.title = 'Frame ' + (index + 1) + ' at ' + formatTime(activeTimes[index]);
+      cell.setAttribute('aria-label', cell.title);
+    });
   }
 
   function refreshFloatingGrid() {
@@ -534,6 +640,7 @@
     const targetGrid = floatingGrid;
     const serial = ++renderSerial;
     activeSceneId = null;
+    activeHighRes = false;
     lastSceneId = id;
     lastFloatingGrid = targetGrid;
     updateGridControls();
@@ -543,32 +650,50 @@
       if (!info || !info.sprite) {
         throw new Error('No Stash sprite is available for this scene');
       }
-      return buildGridSheet(info.sprite, targetGrid).then(result => ({ result, duration: info.duration }));
-    }).then(({ result, duration }) => {
+      return buildGridSheet(info.sprite, targetGrid).then(result => ({ result, info }));
+    }).then(({ result, info }) => {
       if (serial !== renderSerial || !pipUi || !pipWindow || pipWindow.closed) return;
       if (sceneId() !== id || floatingGrid !== targetGrid) return;
       activeTimes = result.times;
-      activeDuration = duration;
+      activeDuration = info.duration;
       activeSceneId = id;
+      activeHighRes = false;
       selectedCellIndex = nearestActiveCell();
       pipUi.image.src = result.url;
-      pipUi.image.alt = targetGrid + '×' + targetGrid + ' contact sheet';
+      pipUi.image.alt = targetGrid + '×' + targetGrid + ' sprite contact sheet';
       pipUi.sheet.dataset.aspect = String(result.aspect || 16 / 9);
       pipUi.cells.style.gridTemplateColumns = 'repeat(' + targetGrid + ',minmax(0,1fr))';
       pipUi.cells.style.gridTemplateRows = 'repeat(' + targetGrid + ',minmax(0,1fr))';
       pipUi.notice.style.display = 'none';
       pipUi.sheet.style.display = 'block';
-      pipUi.status.textContent = 'Scene #' + id + '  |  ' + targetGrid + '×' + targetGrid +
-        '  |  Click, Ctrl+Arrows, or Left/Right Arrow';
-      Array.from(pipUi.cells.children).forEach((cell, i) => {
-        const visible = i < targetGrid * targetGrid;
-        cell.style.display = visible ? 'block' : 'none';
-        if (!visible) return;
-        cell.title = 'Frame ' + (i + 1) + ' at ' + formatTime(activeTimes[i]);
-        cell.setAttribute('aria-label', cell.title);
-      });
+      updateVisibleCells(targetGrid);
       updateCellSelection();
       pipUi.resize();
+
+      if (!highResEnabled) {
+        pipUi.status.textContent = activeStatus();
+        return;
+      }
+      pipUi.status.textContent = activeStatus('Generating high-res ...');
+      void ensureHighRes(id, info.cacheKey, targetGrid).then(url => {
+        if (serial !== renderSerial || !url || !pipUi || !pipWindow || pipWindow.closed) return;
+        if (sceneId() !== id || floatingGrid !== targetGrid || activeSceneId !== id) return;
+        const count = targetGrid * targetGrid;
+        activeTimes = Array.from({ length: count }, (_, index) =>
+          activeDuration * (index + 0.5) / count
+        );
+        activeHighRes = true;
+        selectedCellIndex = nearestActiveCell();
+        pipUi.image.src = url;
+        pipUi.image.alt = targetGrid + '×' + targetGrid + ' high-resolution contact sheet';
+        updateVisibleCells(targetGrid);
+        updateCellSelection();
+        pipUi.status.textContent = activeStatus();
+      }).catch(error => {
+        if (serial !== renderSerial || !pipUi || sceneId() !== id || floatingGrid !== targetGrid) return;
+        console.warn('[Floating Mosaic] High-resolution upgrade unavailable:', error);
+        pipUi.status.textContent = activeStatus('High-res unavailable');
+      });
     }).catch(error => {
       if (serial !== renderSerial) return;
       console.error('[Floating Mosaic] Could not build selected grid:', error);
@@ -619,6 +744,7 @@
         pipUi = null;
         activeSceneId = null;
         activeTimes = [];
+        activeHighRes = false;
         selectedCellIndex = 0;
         ctrlNavigationActive = false;
         ctrlNavigationMoved = false;
@@ -663,10 +789,15 @@
       const disabled = value === true || value === 1 ||
         ['true', '1', 'yes', 'on'].includes(String(value || '').toLowerCase());
       autoOpenEnabled = !disabled;
+      const highResValue = config.disableHighRes;
+      const highResDisabled = highResValue === true || highResValue === 1 ||
+        ['true', '1', 'yes', 'on'].includes(String(highResValue || '').toLowerCase());
+      highResEnabled = !highResDisabled;
       autoOpenConfigLoaded = true;
     } catch (error) {
       // Keep the button-free plugin usable if configuration cannot be read.
       autoOpenEnabled = true;
+      highResEnabled = true;
       autoOpenConfigLoaded = true;
       console.warn('[Floating Mosaic] Could not read settings; automatic opening remains enabled:', error);
     }
@@ -709,7 +840,7 @@
   document.addEventListener('keydown', handleRecoveryShortcut, true);
   void loadPluginConfiguration();
   // Stash is a single-page app. Keep the floating image in sync as the current
-  // scene changes; no background network requests are needed.
+  // scene changes; generation itself is de-duplicated per scene and grid size.
   setInterval(() => {
     if (pipWindow && !pipWindow.closed) refreshFloatingGrid();
   }, 900);
